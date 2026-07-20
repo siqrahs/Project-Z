@@ -1,0 +1,58 @@
+name: Code Quality Check & Linting
+
+on:
+  # Bisa dijalankan secara manual dari tab Actions
+  workflow_dispatch:
+    inputs:
+      enable_debug_logging:
+        description: 'Aktifkan Verbose Log saat Linting Check'
+        required: false
+        type: boolean
+        default: true
+
+jobs:
+  check-code:
+    name: Verify Code & Run Lint
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Checkout Kode Repositori
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # 2. Setup Lingkungan Java (JDK 17)
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      # 3. Berikan Izin Eksekusi pada Gradle Wrapper
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      # 4. Cek Kompilasi Kotlin (Pastikan Tidak Ada Error Sintaksis)
+      - name: Verify Kotlin Compilation
+        run: ./gradlew compileDebugKotlin --stacktrace
+
+      # 5. Jalankan Android Lint (Cek Bug & Potensi Masalah Performa/Sistem)
+      - name: Run Android Lint Check
+        run: |
+          LOG_LEVEL="--stacktrace"
+          if [ "${{ inputs.enable_debug_logging }}" = "true" ]; then
+            LOG_LEVEL="--stacktrace --info"
+          fi
+          ./gradlew lintDebug $LOG_LEVEL 2>&1 | tee lint_execution.log
+
+      # 6. Upload Laporan Lint (HTML & XML Report)
+      - name: Upload Lint Report Artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Code-Lint-Report
+          path: |
+            app/build/reports/lint-results-debug.html
+            app/build/reports/lint-results-debug.xml
+            lint_execution.log
+          retention-days: 7
