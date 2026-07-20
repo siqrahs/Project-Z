@@ -1,0 +1,71 @@
+name: Build Android APK (Manual & Debug)
+
+on:
+  # Hanya terpicu secara manual dari tab Actions di GitHub
+  workflow_dispatch:
+    inputs:
+      enable_debug_logging:
+        description: 'Aktifkan Mode Verbose Debug (--info & --stacktrace)'
+        required: false
+        type: boolean
+        default: true
+
+jobs:
+  build:
+    name: Build Debug APK
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Checkout Kode Repositori
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # 2. Setup Lingkungan Java (JDK 17)
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      # 3. Berikan Izin Eksekusi pada Gradle Wrapper
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      # 4. Tampilkan Informasi Lingkungan (Bantu Debugging Versi Tooling)
+      - name: Display System & Tooling Info
+        run: |
+          echo "=== Java Version ==="
+          java -version
+          echo "=== Gradle Version ==="
+          ./gradlew --version
+
+      # 5. Compile & Build APK dengan Logging Ekstra
+      - name: Build Debug APK
+        run: |
+          LOG_LEVEL="--stacktrace"
+          if [ "${{ inputs.enable_debug_logging }}" = "true" ]; then
+            LOG_LEVEL="--stacktrace --info"
+          fi
+          echo "Menjalankan build dengan argumen: $LOG_LEVEL"
+          ./gradlew assembleDebug $LOG_LEVEL 2>&1 | tee build_execution.log
+
+      # 6. Upload APK Hasil Build (Hanya jika berhasil)
+      - name: Upload Debug APK Artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: SecurityManager-Debug-APK
+          path: app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 14
+
+      # 7. Upload Log Debugging & Report Error (Selalu berjalan, bahkan jika build GAGAL)
+      - name: Upload Debug Logs & Crash Reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Build-Debug-Logs
+          path: |
+            build_execution.log
+            app/build/reports/
+          retention-days: 7
